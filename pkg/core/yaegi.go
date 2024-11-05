@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/go-github/v57/github"
 	"github.com/mitchellh/mapstructure"
+	"github.com/rs/zerolog/log"
 	"github.com/traefik/yaegi/interp"
 	"github.com/traefik/yaegi/stdlib"
 	"golang.org/x/mod/modfile"
@@ -25,8 +26,10 @@ func (s *Scrapper) verifyYaegiPlugin(ctx context.Context, repository *github.Rep
 	if err != nil {
 		return "", nil, err
 	}
+	logger := log.Ctx(ctx).With().Str("verifyYaegiPlugin", repository.GetName()).Logger()
 
 	pluginName := mod.Module.Mod.Path
+	logger.Debug().Msg(fmt.Sprintf("Using pluginName %s", pluginName))
 
 	// skip already existing plugin
 	prev, err := s.pg.GetByName(ctx, pluginName)
@@ -57,6 +60,7 @@ func (s *Scrapper) verifyYaegiPlugin(ctx context.Context, repository *github.Rep
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to create temp GOPATH: %w", err)
 	}
+	logger.Debug().Msg(fmt.Sprintf("Using GOPATH %s", gop))
 
 	defer func() { _ = os.RemoveAll(gop) }()
 
@@ -133,6 +137,7 @@ func (s *Scrapper) getModuleInfo(ctx context.Context, repository *github.Reposit
 
 func yaegiMiddlewareCheck(goPath string, manifest Manifest, skipNew bool) error {
 	middlewareName := "test"
+	logger := log.With().Str("yaegiMiddlewareCheck", manifest.Import).Logger()
 
 	next := http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {})
 
@@ -145,10 +150,13 @@ func yaegiMiddlewareCheck(goPath string, manifest Manifest, skipNew bool) error 
 		return fmt.Errorf("load of stdlib symbols: %w", err)
 	}
 
-	_, err := i.EvalWithContext(ctx, fmt.Sprintf(`import %q`, manifest.Import))
+	logger.Debug().Msg(fmt.Sprintf(`import %q`, manifest.Import))
+	resp1, err := i.EvalWithContext(ctx, fmt.Sprintf(`import %q`, manifest.Import))
 	if err != nil {
 		return fmt.Errorf("the load of the plugin takes too much time(%s), or an error, inside the plugin, occurs during the load: %w", timeout, err)
 	}
+
+	logger.Debug().Msg(fmt.Sprintf("Result: %v", resp1))
 
 	basePkg := manifest.BasePkg
 	if basePkg == "" {
@@ -156,15 +164,19 @@ func yaegiMiddlewareCheck(goPath string, manifest Manifest, skipNew bool) error 
 		basePkg = strings.ReplaceAll(basePkg, "-", "_")
 	}
 
+	logger.Debug().Msg(basePkg + `.CreateConfig()`)
+
 	vConfig, err := i.EvalWithContext(ctx, basePkg+`.CreateConfig()`)
 	if err != nil {
-		return fmt.Errorf("failed to eval `CreateConfig` function: %w", err)
+		return fmt.Errorf("failed to eval %s.CreateConfig() function: %w using import %q", basePkg, err, manifest.Import)
 	}
 
 	err = decodeConfig(vConfig, manifest.TestData)
 	if err != nil {
 		return err
 	}
+
+	logger.Debug().Msg(basePkg + `.New`)
 
 	fnNew, err := i.EvalWithContext(ctx, basePkg+`.New`)
 	if err != nil {

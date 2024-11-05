@@ -66,7 +66,8 @@ type Scrapper struct {
 	gp *goproxy.Client
 	pg pluginClient
 
-	dryRun bool
+	dryRun     bool
+	runSkipped bool
 
 	searchQueries       []string
 	searchQueriesIssues []string
@@ -78,13 +79,14 @@ type Scrapper struct {
 }
 
 // NewScrapper creates a new Scrapper instance.
-func NewScrapper(gh *github.Client, gp *goproxy.Client, pgClient pluginClient, dryRun bool, sources Sources, tracer trace.Tracer, searchQueries, searchQueriesIssues []string) *Scrapper {
+func NewScrapper(gh *github.Client, gp *goproxy.Client, pgClient pluginClient, dryRun bool, sources Sources, tracer trace.Tracer, searchQueries, searchQueriesIssues []string, runSkipped bool) *Scrapper {
 	return &Scrapper{
 		gh: gh,
 		gp: gp,
 		pg: pgClient,
 
-		dryRun: dryRun,
+		dryRun:     dryRun,
+		runSkipped: runSkipped,
 
 		searchQueries:       searchQueries,
 		searchQueriesIssues: searchQueriesIssues,
@@ -183,7 +185,7 @@ func (s *Scrapper) isSkipped(ctx context.Context, reposWithExistingIssue []strin
 		return true
 	}
 
-	if slices.Contains(reposWithExistingIssue, repository.GetFullName()) {
+	if !s.runSkipped && slices.Contains(reposWithExistingIssue, repository.GetFullName()) {
 		log.Ctx(ctx).Debug().Msg("The issue is still opened.")
 		return true
 	}
@@ -260,12 +262,15 @@ func (s *Scrapper) search(ctx context.Context) ([]*github.Repository, error) {
 func (s *Scrapper) process(ctx context.Context, repository *github.Repository) (*plugin.Plugin, error) {
 	ctx, span := s.tracer.Start(ctx, "scrapper_process_"+repository.GetName())
 	defer span.End()
+	logger := log.Ctx(ctx).With().Str("scrapper_process_", repository.GetName()).Logger()
 
 	latestVersion, err := s.getLatestTag(ctx, repository)
 	if err != nil {
 		span.RecordError(err)
 		return nil, fmt.Errorf("failed to get the latest tag: %w", err)
 	}
+
+	logger.Debug().Msg(fmt.Sprintf("Using version %s", &latestVersion))
 
 	// Gets readme
 
@@ -282,6 +287,8 @@ func (s *Scrapper) process(ctx context.Context, repository *github.Repository) (
 		span.RecordError(err)
 		return nil, err
 	}
+
+	logger.Debug().Msg(fmt.Sprintf("Found manifest of type %s", &manifest.Runtime))
 
 	var versions []string
 	var pluginName string

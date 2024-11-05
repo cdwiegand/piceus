@@ -34,7 +34,7 @@ func run(ctx context.Context, cfg Config) error {
 		srcs = &sources.GoProxy{Client: gpClient}
 	}
 
-	scrapper := core.NewScrapper(ghClient, gpClient, pgClient, cfg.DryRun, srcs, tTracer, cfg.GithubSearchQueries, cfg.GithubSearchQueriesIssues)
+	scrapper := core.NewScrapper(ghClient, gpClient, pgClient, cfg.DryRun, srcs, tTracer, cfg.GithubSearchQueries, cfg.GithubSearchQueriesIssues, cfg.RunSkipped)
 
 	return scrapper.Run(ctx)
 }

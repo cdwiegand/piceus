@@ -10,7 +10,8 @@ type Config struct {
 	GithubToken string
 	PluginURL   string
 
-	DryRun bool
+	DryRun     bool
+	RunSkipped bool
 
 	GithubSearchQueries       []string
 	GithubSearchQueriesIssues []string
@@ -23,6 +24,7 @@ func buildConfig(cliCtx *cli.Context) Config {
 		GithubToken:               cliCtx.String(flagGitHubToken),
 		PluginURL:                 cliCtx.String(flagPluginURL),
 		DryRun:                    cliCtx.Bool(flagDryRun),
+		RunSkipped:                cliCtx.Bool(flagRunSkipped),
 		GithubSearchQueries:       cliCtx.StringSlice(flagGithubSearchQueries),
 		GithubSearchQueriesIssues: cliCtx.StringSlice(flagGithubSearchQueriesIssues),
 		Tracing: tracer.Config{

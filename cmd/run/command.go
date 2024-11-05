@@ -10,6 +10,7 @@ const (
 	flagLogLevel                  = "log-level"
 	flagGitHubToken               = "github-token"
 	flagDryRun                    = "dry-run"
+	flagRunSkipped                = "run-skipped"
 	flagPluginURL                 = "plugin-url"
 	flagGithubSearchQueries       = "github-search-queries"
 	flagGithubSearchQueriesIssues = "github-search-queries-issues"
@@ -47,6 +48,12 @@ func Command() *cli.Command {
 				Usage:   "Dry run mode.",
 				EnvVars: []string{strcase.ToSNAKE(flagDryRun)},
 				Value:   true,
+			},
+			&cli.BoolFlag{
+				Name:    flagRunSkipped,
+				Usage:   "Run repositories that would be skipped.",
+				EnvVars: []string{strcase.ToSNAKE(flagRunSkipped)},
+				Value:   false,
 			},
 			&cli.StringFlag{
 				Name:     flagPluginURL,
